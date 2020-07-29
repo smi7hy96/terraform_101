@@ -3,19 +3,8 @@ provider "aws" {
   access_key = "${var.Access_Key}"
   secret_key = "${var.Secret_Key}"
 }
-#CREATE WEB MACHINE WITH APP AMI
-resource "aws_instance" "Web" {
-  ami                         = "${var.app_ami_id}"
-  instance_type               = "t2.micro"
-  associate_public_ip_address = true
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.webapp.id]
-  user_data                   = data.template_file.initapp.rendered
-  tags = {
-    Name = "${var.name}.tf.app"
-  }
-}
-#CREATE WEB MACHINE WITH APP AMI
+
+#CREATE WEB MACHINE WITH DB AMI
 resource "aws_instance" "Db" {
   ami                         = "${var.db_ami_id}"
   instance_type               = "t2.micro"
@@ -27,16 +16,6 @@ resource "aws_instance" "Db" {
     Name = "${var.name}.tf.DB"
   }
 }
-#CREATE BASTION MACHINE
-# resource "aws_instance" "Bastion" {
-#   ami                         = "ami-06ab65ef16db3ae5f"
-#   instance_type               = "t2.micro"
-#   associate_public_ip_address = true
-#   tags = {
-#     Name = "${var.name}.tf.bastion"
-#   }
-# }
-#CREATE VPC
 #CREATE VPC
 resource "aws_vpc" "main" {
   cidr_block       = "${var.cidr_block}"
@@ -54,120 +33,24 @@ resource "aws_internet_gateway" "gw" {
   }
 }
 
-#CREATE public Subnet
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "${var.cidr_block_pub}"
-  availability_zone       = "eu-west-1a"
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "${var.name}.sub.public"
-  }
-}
-#CREATE Security Group for webapp
-resource "aws_security_group" "webapp" {
-  name        = "app-security-group"
-  description = "Allow HTTP and HTTPS Traffic In"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTPS IN"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["${var.cidr_block_all}"]
-  }
-  ingress {
-    description = "HTTP IN"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["${var.cidr_block_all}"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["${var.cidr_block_all}"]
-  }
-
-  tags = {
-    Name = "${var.name}.SecG.Webapp"
-  }
-}
-#CREATE NACL for Public Subnet
-resource "aws_network_acl" "public" {
-  vpc_id     = aws_vpc.main.id
-  subnet_ids = [aws_subnet.public.id]
-
-  egress {
-    protocol   = "tcp"
-    rule_no    = 100
-    action     = "allow"
-    cidr_block = "${var.cidr_block_all}"
-    from_port  = 80
-    to_port    = 80
-  }
-
-  ingress {
-    protocol   = "tcp"
-    rule_no    = 100
-    action     = "allow"
-    cidr_block = "${var.cidr_block_all}"
-    from_port  = 80
-    to_port    = 80
-  }
-  egress {
-    protocol   = "tcp"
-    rule_no    = 120
-    action     = "allow"
-    cidr_block = "${var.cidr_block_all}"
-    from_port  = 1024
-    to_port    = 65535
-  }
-
-  ingress {
-    protocol   = "tcp"
-    rule_no    = 120
-    action     = "allow"
-    cidr_block = "${var.cidr_block_all}"
-    from_port  = 1024
-    to_port    = 65535
-  }
-
-  tags = {
-    Name = "${var.name}.Nacl.public"
-  }
+#################--------MODULES-----------##########
+module "app" {
+  source = "./modules/app_tier"
+  vpc_id = "${aws_vpc.main.id}"
+  name = "${var.name}"
+  cidr_block_pub = "${var.cidr_block_pub}"
+  cidr_block_all = "${var.cidr_block_all}"
+  internet_gw = "${aws_internet_gateway.gw.id}"
+  db_private_ip = "${aws_instance.Db.private_ip}"
+  ami_id = "${var.app_ami_id}"
 }
 
-#CREATE Route Table for public subnet
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
 
-  route {
-    cidr_block = "${var.cidr_block_all}"
-    gateway_id = aws_internet_gateway.gw.id
-  }
 
-  tags = {
-    Name = "${var.name}.Route.public"
-  }
-}
 
-#CREATE Route Table Association for public route table
-resource "aws_route_table_association" "routeapp" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
-}
-#LOAD INIT SCRIPT TO BE USED
-data "template_file" "initapp" {
-  template = file("./scripts/app/init.sh.tpl")
-  vars = {
-      db_host = "mongodb://${aws_instance.Db.private_ip}:27017/posts"
-    }
-}
+
+
+
 
 # DB MACHINE SETUP
 
