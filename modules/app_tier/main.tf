@@ -108,13 +108,6 @@ resource "aws_route_table_association" "routeapp" {
   route_table_id = aws_route_table.public.id
 }
 
-#LOAD INIT SCRIPT TO BE USED
-data "template_file" "initapp" {
-  template = file("./scripts/app/init.sh.tpl")
-  vars = {
-      db_host = "mongodb://${var.db_private_ip}:27017/posts"
-    }
-}
 
 #CREATE WEB MACHINE WITH APP AMI
 resource "aws_instance" "Web" {
@@ -123,7 +116,7 @@ resource "aws_instance" "Web" {
   associate_public_ip_address = true
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.webapp.id]
-  user_data                   = data.template_file.initapp.rendered
+  user_data                   = "${var.user_data}"
   tags = {
     Name = "${var.name}.tf.app"
   }

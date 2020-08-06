@@ -10,6 +10,10 @@ variable "name" {
   description = "Naming Convention for naming resources"
 }
 
+variable "cidr_block_priv" {
+  description = "CIDR Block for private subnet"
+}
+
 variable "cidr_block_pub" {
   description = "CIDR Block for the public subnet"
 }
@@ -22,10 +26,6 @@ variable "internet_gw" {
   description = "ID for the internet gateway"
 }
 
-variable "db_private_ip" {
-  description = "Private IP for the DB Instance"
-}
-
-variable "user_data" {
-  description = "User data to provision the instance"
+variable "app_sec_group" {
+  description = "Security Group for the App"
 }
